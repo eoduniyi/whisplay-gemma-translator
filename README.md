@@ -65,6 +65,53 @@ The application will be accessible at:
 - **Web UI (Prod) / API server**: `http://localhost:3000`
 - **LiteRT-LM**: `http://localhost:9379`
 
+### Warm-model and streaming behavior
+
+At startup, `backend/litert_session_server.py` loads Gemma and creates one
+persistent translator conversation with its system prompt already in the KV
+cache. The browser receives token SSE events through the streaming `/proxy`,
+updates the translation on every delta, and sends completed clauses to the TTS
+queue while the rest of the response is still being generated. The Python API
+also loads the default Chinese and English STT/TTS models before it begins
+accepting requests.
+
+The main Raspberry Pi tuning variables are:
+
+```bash
+TRANSLATOR_PRELOAD_LANGUAGES=zh,en
+TRANSLATOR_SPEECH_MODEL_CACHE_SIZE=2
+LITERT_MAX_NUM_TOKENS=4096
+LITERT_RESET_AT_TOKENS=3200
+```
+
+The persistent conversation is recreated automatically at the reset threshold
+to prevent an unbounded KV cache.
+
+### Accessing the UI from another device
+
+The Web UI listens on all network interfaces by default. Connect a phone,
+tablet, or computer to the same local network as the translator, find the
+translator's IP address, and open:
+
+- **Production / appliance deployment:** `http://<translator-ip>:3000`
+- **Development mode:** `http://<translator-ip>:5173`
+
+For example, if the translator's address is `192.168.1.42`, open
+`http://192.168.1.42:3000`. On Raspberry Pi OS, the address can be found with
+`hostname -I`.
+
+The bind address and ports can be overridden when needed:
+
+```bash
+TRANSLATOR_HOST=0.0.0.0 TRANSLATOR_PORT=3000 ./start.sh --prod
+TRANSLATOR_WEB_PORT=5173 ./start.sh
+```
+
+Set `TRANSLATOR_HOST=127.0.0.1` to disable LAN access. This feature is intended
+for trusted local networks; it does not expose the service through a router or
+the public internet. Remote browsers can view and control the UI, but microphone
+capture may require HTTPS because of browser security rules.
+
 ## Raspberry Pi Appliance Deployment
 
 To deploy as a permanent systemd kiosk service on a Raspberry Pi 5 (8GB):
@@ -92,7 +139,7 @@ GPIO25/24/23.
 ## Project Structure
 
 - `frontend/` - React (Vite) web frontend (`index.html`, `src/`, styles, and Vite configuration).
-- `backend/` - Python API server (`server.py` and `requirements.txt`) for Moonshine STT, moonshine-voice TTS, and model proxying.
+- `backend/` - Python API server for Moonshine STT/TTS and the persistent LiteRT-LM translator service.
 - `deploy/` - Parameterizable systemd service unit template (`gemma-translator.service`).
 - `stl/` - STL files for 3D printing the hardware case.
 - `setup.sh` - Automates Python virtual environment creation and dependency installation.

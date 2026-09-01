@@ -107,4 +107,5 @@ fi
 
 echo "==========================================================="
 echo "Deployment complete! Appliance running at http://localhost:3000"
+echo "From another device on the same network: http://<translator-ip>:3000"
 echo "==========================================================="

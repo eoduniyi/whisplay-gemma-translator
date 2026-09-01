@@ -21,8 +21,8 @@ import Visualizer from "./components/Visualizer"
 import { useAudioRecorder } from "./hooks/useAudioRecorder"
 import {
   transcribeAudio,
-  translateText,
-  splitTextIntoSpeechChunks,
+  translateTextStream,
+  extractSpeechChunks,
 } from "./utils/api"
 import { playBlip } from "./utils/audio-blip"
 
@@ -64,6 +64,7 @@ function TranslatorApp({ config, setConfig }) {
 
   // Currently-playing TTS audio element (chunked playback chain)
   const onlineAudioPlayerRef = useRef(null)
+  const speechSessionRef = useRef(null)
 
   // Language Lanes State
   const [lang1Index, setLang1Index] = useState(() =>
@@ -120,6 +121,11 @@ function TranslatorApp({ config, setConfig }) {
   }, [])
 
   const stopSpeaking = useCallback(() => {
+    if (speechSessionRef.current) {
+      speechSessionRef.current.cancelled = true
+      speechSessionRef.current.controllers.forEach((controller) => controller.abort())
+      speechSessionRef.current = null
+    }
     if (onlineAudioPlayerRef.current) {
       onlineAudioPlayerRef.current.pause()
       if (onlineAudioPlayerRef.current.dataset.objectUrl) {
@@ -129,76 +135,55 @@ function TranslatorApp({ config, setConfig }) {
     }
   }, [])
 
-  // Speak text via /api/tts, splitting into ~180-char chunks and chaining
-  // playback so long translations don't overflow a single TTS request.
-  const playTTS = useCallback(
-    async (text, targetLang, onSynthesisReady) => {
-      if (!text) return 0
-      stopSpeaking()
+  const createSpeechSession = useCallback((targetLang, onSynthesisReady) => {
+    stopSpeaking()
+    const session = {
+      cancelled: false,
+      controllers: new Set(),
+      playChain: Promise.resolve(),
+      synthesisMs: 0,
+    }
+    speechSessionRef.current = session
 
-      const chunks = splitTextIntoSpeechChunks(text)
-      if (chunks.length === 0) return 0
-
-      let chunkIndex = 0
-      let synthesisMs = 0
-
-      return new Promise((resolve, reject) => {
-        const playNextChunk = async () => {
-          if (chunkIndex >= chunks.length) {
-            stopSpeaking()
-            resolve(synthesisMs)
-            return
-          }
-
-          const ttsUrl = `/api/tts?text=${encodeURIComponent(chunks[chunkIndex])}&lang=${encodeURIComponent(targetLang)}`
-          const chunkStart = performance.now()
-
-          let objectUrl = null
-          try {
-            const response = await fetch(ttsUrl, { cache: "no-store" })
-            if (!response.ok) throw new Error(`TTS failed: ${response.status}`)
-            const audioBlob = await response.blob()
-            synthesisMs += performance.now() - chunkStart
-            onSynthesisReady?.(synthesisMs)
-
-            objectUrl = URL.createObjectURL(audioBlob)
-            const player = new Audio(objectUrl)
-            player.volume = 1.0
-            player.dataset.objectUrl = objectUrl
-            onlineAudioPlayerRef.current = player
-
-            player.onended = () => {
-              URL.revokeObjectURL(objectUrl)
-              if (onlineAudioPlayerRef.current === player) {
-                onlineAudioPlayerRef.current = null
-              }
-              chunkIndex++
-              playNextChunk()
-            }
-            player.onerror = () => {
-              URL.revokeObjectURL(objectUrl)
-              stopSpeaking()
-              alert("TTS playback failed. Backend server may be offline.")
-              reject(new Error("TTS playback failed"))
-            }
-            player.play().catch((e) => {
-              URL.revokeObjectURL(objectUrl)
-              console.error("Audio play error:", e)
-              stopSpeaking()
-              reject(e)
-            })
-          } catch (e) {
-            if (objectUrl) URL.revokeObjectURL(objectUrl)
-            stopSpeaking()
-            reject(e)
-          }
-        }
-
-        playNextChunk()
+    session.enqueue = (text) => {
+      if (!text.trim() || session.cancelled) return
+      const controller = new AbortController()
+      session.controllers.add(controller)
+      const startedAt = performance.now()
+      // Start synthesis immediately. Playback is chained separately so later
+      // sentences can be synthesized while the first sentence is speaking.
+      const synthesis = fetch(
+        `/api/tts?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(targetLang)}`,
+        { cache: "no-store", signal: controller.signal },
+      ).then(async (response) => {
+        session.controllers.delete(controller)
+        if (!response.ok) throw new Error(`TTS failed: ${response.status}`)
+        const blob = await response.blob()
+        session.synthesisMs += performance.now() - startedAt
+        onSynthesisReady?.(session.synthesisMs)
+        return blob
       })
-    },
-    [stopSpeaking],
-  )
+
+      session.playChain = session.playChain.then(async () => {
+        const blob = await synthesis
+        if (session.cancelled) return
+        const objectUrl = URL.createObjectURL(blob)
+        const player = new Audio(objectUrl)
+        player.volume = 1.0
+        player.dataset.objectUrl = objectUrl
+        onlineAudioPlayerRef.current = player
+        await new Promise((resolve, reject) => {
+          player.onended = resolve
+          player.onerror = () => reject(new Error("TTS playback failed"))
+          player.play().catch(reject)
+        }).finally(() => {
+          URL.revokeObjectURL(objectUrl)
+          if (onlineAudioPlayerRef.current === player) onlineAudioPlayerRef.current = null
+        })
+      })
+    }
+    return session
+  }, [stopSpeaking])
 
   // Rotate a lane's language, skipping the slot held by the other lane
   // (the two lanes may never show the same language).
@@ -324,24 +309,38 @@ function TranslatorApp({ config, setConfig }) {
       }
 
       // 2. Translation
-      const result = await translateText(transcribedText, {
+      let sentenceBuffer = ""
+      const speechSession = currentConfig.enableTts
+        ? createSpeechSession(dst.ttsLang, (ttsMs) => {
+            setTiming((prev) => ({ ...prev, tts: ttsMs / 1000 }))
+          })
+        : null
+      const llmPrompt = `Source language: ${src.name}\nTarget language: ${dst.name}\nText:\n${transcribedText}`
+      const result = await translateTextStream(llmPrompt, {
         ...currentConfig,
         modelName: currentConfig.modelName,
-        systemPrompt: `You are a high-performance translator. Your task is to translate text from ${src.name.split(" ")[0]} into ${dst.name.split(" ")[0]}.\nYou MUST format your response as a valid JSON object matching this structure:\n{\n  "translation": "High-quality, natural translation into ${dst.name.split(" ")[0]}"\n}\nDo NOT return anything else except this JSON object. No Markdown block wraps (no \`\`\`json), no introductory text, no conversational text. Start directly with "{" and end directly with "}".`,
+        systemPrompt: currentConfig.systemPrompt,
+      }, (delta, fullText) => {
+        setTranslationData((prev) => ({ ...prev, text: fullText }))
+        sentenceBuffer += delta
+        const parsed = extractSpeechChunks(sentenceBuffer)
+        sentenceBuffer = parsed.remaining
+        parsed.chunks.forEach((chunk) => speechSession?.enqueue(chunk))
       })
+
+      const finalChunks = extractSpeechChunks(sentenceBuffer, true).chunks
+      finalChunks.forEach((chunk) => speechSession?.enqueue(chunk))
 
       setTranslationData((prev) => ({ ...prev, text: result.translation }))
       setTiming((prev) => ({
         ...prev,
-        translate: Number(result.duration),
-        tts: currentConfig.enableTts ? "loading" : "off",
+        translate: (result.firstTokenMs ?? result.durationMs) / 1000,
+        tts: currentConfig.enableTts
+          ? (prev.tts === null ? "loading" : prev.tts)
+          : "off",
       }))
-      setMetaText(`Tokens: ${result.tokens}`)
-
-      if (currentConfig.enableTts) {
-        playTTS(result.translation, dst.ttsLang, (ttsMs) => {
-          setTiming((prev) => ({ ...prev, tts: ttsMs / 1000 }))
-        }).catch((err) => {
+      if (speechSession) {
+        speechSession.playChain.catch((err) => {
           console.error(err)
           setTiming((prev) => ({ ...prev, tts: "error" }))
         })

@@ -39,7 +39,7 @@ from collections import OrderedDict
 # recognizer per language actually used.
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 SUPPORTED_STT_LANGS = {"en", "ar", "es", "ja", "zh", "ko"}
-MAX_MODELS = 2
+MAX_MODELS = max(2, int(os.environ.get("TRANSLATOR_SPEECH_MODEL_CACHE_SIZE", "2")))
 _stt_recognizers = OrderedDict()  # language -> recognizer
 # RLock (reentrant): handle_stt holds the lock across get_stt_recognizer() + inference,
 # and get_stt_recognizer() re-acquires it on the same thread. A plain Lock() self-deadlocks.
@@ -297,7 +297,15 @@ def language_status_payload():
     return {"languages": languages}
 
 
-PORT = 3000
+HOST = os.environ.get("TRANSLATOR_HOST", "0.0.0.0")
+PORT = int(os.environ.get("TRANSLATOR_PORT", "3000"))
+
+
+def is_local_client(client_address):
+    """Return True for loopback clients, including IPv4-mapped IPv6."""
+    client_ip = client_address[0]
+    return client_ip in ('127.0.0.1', '::1', 'localhost', '::ffff:127.0.0.1')
+
 
 class ProxyHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
     def end_headers(self):
@@ -351,16 +359,27 @@ class ProxyHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
             if key.lower() not in ['host', 'connection', 'content-length', 'x-target-url']:
                 req.add_header(key, val)
 
+        response_started = False
         try:
             with urllib.request.urlopen(req, timeout=300) as response:
-                res_body = response.read()
                 self.send_response(response.status)
                 # Forward response headers
                 for key, val in response.headers.items():
-                    if key.lower() not in ['content-length', 'connection']:
+                    if key.lower() not in ['content-length', 'connection', 'transfer-encoding']:
                         self.send_header(key, val)
                 self.end_headers()
-                self.wfile.write(res_body)
+                response_started = True
+                # read1 returns currently available bytes instead of waiting for
+                # the full response. This preserves LiteRT-LM SSE token timing.
+                read_chunk = getattr(response, 'read1', response.read)
+                while True:
+                    res_body = read_chunk(4096)
+                    if not res_body:
+                        break
+                    self.wfile.write(res_body)
+                    self.wfile.flush()
+        except (BrokenPipeError, ConnectionResetError):
+            print("[Proxy] Streaming client disconnected")
         except urllib.error.HTTPError as e:
             print(f"[Proxy Error] HTTP Error {e.code}: {e.reason}")
             try:
@@ -372,9 +391,12 @@ class ProxyHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(res_body)
         except Exception as e:
             print(f"[Proxy Error] Exception: {e}")
-            self.send_response(500)
-            self.end_headers()
-            self.wfile.write(str(e).encode('utf-8'))
+            if response_started:
+                self.close_connection = True
+            else:
+                self.send_response(500)
+                self.end_headers()
+                self.wfile.write(str(e).encode('utf-8'))
 
     def handle_tts(self):
         parsed_path = urllib.parse.urlparse(self.path)
@@ -457,8 +479,7 @@ class ProxyHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(str(e).encode('utf-8'))
 
     def handle_volume(self):
-        client_ip = self.client_address[0]
-        if client_ip not in ('127.0.0.1', '::1', 'localhost'):
+        if not is_local_client(self.client_address):
             self.send_response(403)
             self.end_headers()
             self.wfile.write(b'Forbidden: Volume control is only accessible locally')
@@ -654,6 +675,12 @@ class ProxyHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(str(e).encode('utf-8'))
 
     def handle_kiosk_exit(self):
+        if not is_local_client(self.client_address):
+            self.send_response(403)
+            self.end_headers()
+            self.wfile.write(b'Forbidden: Kiosk control is only accessible locally')
+            return
+
         try:
             subprocess.Popen(
                 ['pkill', '-f', '^/usr/lib/chromium/chromium .*127[.]0[.]0[.]1:3000'],
@@ -780,7 +807,29 @@ if __name__ == '__main__':
 
     use_ssl = os.path.exists('cert.pem') and os.path.exists('key.pem')
 
-    with socketserver.ThreadingTCPServer(("", PORT), ProxyHTTPRequestHandler) as httpd:
+    preload_languages = []
+    for language in os.environ.get("TRANSLATOR_PRELOAD_LANGUAGES", "zh,en").split(','):
+        language = language.strip().lower()
+        if language in LANGUAGE_LABELS and language not in preload_languages:
+            preload_languages.append(language)
+    if len(preload_languages) > MAX_MODELS:
+        print(
+            f"[Prewarm] Only the first {MAX_MODELS} languages fit the configured cache.",
+            flush=True,
+        )
+        preload_languages = preload_languages[:MAX_MODELS]
+
+    # Finish constructor-level model loading before accepting requests. This
+    # makes service readiness mean STT/TTS conversion will not take a cold path.
+    if preload_languages:
+        print(
+            f"[Prewarm] Loading resident STT/TTS models: {', '.join(preload_languages)}...",
+            flush=True,
+        )
+        prepare_languages_background(preload_languages)
+        print("[Prewarm] Resident speech models ready.", flush=True)
+
+    with socketserver.ThreadingTCPServer((HOST, PORT), ProxyHTTPRequestHandler) as httpd:
         if use_ssl:
             context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
             context.load_cert_chain(certfile='cert.pem', keyfile='key.pem')
@@ -788,20 +837,12 @@ if __name__ == '__main__':
 
         protocol = "https" if use_ssl else "http"
         print(f"===========================================================")
-        print(f"LiteRT-LM Audio Testbed client running at:")
+        print(f"Gemma Translator running at:")
         print(f"👉 {protocol}://localhost:{PORT}")
-        if local_ip != "localhost":
+        if HOST not in ('127.0.0.1', 'localhost', '::1') and local_ip != "localhost":
             print(f"👉 {protocol}://{local_ip}:{PORT} (Local Network)")
+        print(f"Listening on {HOST}:{PORT}")
         print(f"===========================================================")
-        def _prewarm_models():
-            try:
-                print("[Prewarm] Loading default Chinese/English STT & TTS models into memory...", flush=True)
-                prepare_languages_background(["zh", "en"])
-                print("[Prewarm] Default language models pre-warmed successfully.", flush=True)
-            except Exception as e:
-                print(f"[Prewarm Error] {e}", flush=True)
-
-        threading.Thread(target=_prewarm_models, daemon=True).start()
         try:
             httpd.serve_forever()
         except KeyboardInterrupt:

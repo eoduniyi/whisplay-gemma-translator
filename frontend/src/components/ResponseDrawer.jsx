@@ -74,8 +74,9 @@ export default function ResponseDrawer({
               {timing ? (
                 <>
                   <TimingItem label="STT" value={timing.stt} />
-                  <TimingItem label="Translate" value={timing.translate} />
+                  <TimingItem label="LLM 1st" value={timing.translate} />
                   <TimingItem label="TTS" value={timing.tts} />
+                  {metaText ? <span className="timing-total">{metaText}</span> : null}
                 </>
               ) : (
                 metaText

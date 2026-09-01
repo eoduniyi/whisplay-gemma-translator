@@ -154,6 +154,7 @@ sudo systemctl restart gemma-translator.service
 echo "==========================================================="
 echo "whisplay-plus deployment complete."
 echo "UI: http://localhost:3000"
+echo "LAN UI: http://<translator-ip>:3000"
 echo "A reboot is recommended if DSI/audio/GPIO groups changed."
 echo "==========================================================="
 systemctl status --no-pager gemma-translator.service || true

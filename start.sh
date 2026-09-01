@@ -38,13 +38,17 @@ if [ -z "$INVOCATION_ID" ]; then
     lsof -ti:9379,3000,5173 | xargs kill -9 2>/dev/null || true
 fi
 
-LITERT_PORT=9379
-API_PORT=3000
-WEB_PORT=5173
+LITERT_PORT="${LITERT_PORT:-9379}"
+API_PORT="${TRANSLATOR_PORT:-3000}"
+WEB_PORT="${TRANSLATOR_WEB_PORT:-5173}"
+# Listen on every network interface by default so phones and computers on the
+# same LAN can open the translator. Set TRANSLATOR_HOST=127.0.0.1 to opt out.
+export TRANSLATOR_HOST="${TRANSLATOR_HOST:-0.0.0.0}"
+export TRANSLATOR_PORT="$API_PORT"
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-LITERT_CMD="${PROJECT_DIR}/venv/bin/litert-lm serve"
+LITERT_CMD="${PROJECT_DIR}/venv/bin/python3 ${PROJECT_DIR}/backend/litert_session_server.py"
 API_CMD="${PROJECT_DIR}/venv/bin/python3 ${PROJECT_DIR}/backend/server.py"
-WEB_CMD="npm --prefix ${PROJECT_DIR}/frontend run dev"
+WEB_CMD="npm --prefix ${PROJECT_DIR}/frontend run dev -- --host ${TRANSLATOR_HOST} --port ${WEB_PORT}"
 GPIO_CMD="${PROJECT_DIR}/venv/bin/python3 ${PROJECT_DIR}/deploy/whisplay_plus_gpio.py"
 
 CLEANING_UP=0
@@ -98,9 +102,10 @@ echo "[start.sh] Starting litert-lm..."
 $LITERT_CMD &
 LITERT_PID=$!
 
-# Wait for litert-lm to be ready (max 60s)
+# The persistent server opens its port only after the model and system prompt
+# have been loaded, so port readiness also means the first request is warm.
 echo "[start.sh] Waiting for litert-lm on port ${LITERT_PORT}..."
-for i in $(seq 1 60); do
+for i in $(seq 1 180); do
     if nc -z localhost ${LITERT_PORT} 2>/dev/null; then
         echo "[start.sh] litert-lm ready after ${i}s."
         break
@@ -124,6 +129,7 @@ if [ "$PROD_MODE" -eq 1 ]; then
     echo "[start.sh] LiteRT-LM PID: $LITERT_PID"
     echo "[start.sh] API Server PID: $API_PID"
     echo "[start.sh] Access the UI at http://localhost:${API_PORT}"
+    echo "[start.sh] From another device, open http://<translator-ip>:${API_PORT}"
 else
     # Start web UI server
     echo "[start.sh] Starting Web UI on port ${WEB_PORT}..."
@@ -135,6 +141,7 @@ else
     echo "[start.sh] API Server PID: $API_PID"
     echo "[start.sh] Web UI PID: $WEB_PID"
     echo "[start.sh] Access the UI at http://localhost:${WEB_PORT}"
+    echo "[start.sh] From another device, open http://<translator-ip>:${WEB_PORT}"
 fi
 
 # Wait for any child to exit (then the trap will clean up the others)

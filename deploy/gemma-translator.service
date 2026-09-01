@@ -12,6 +12,11 @@ Restart=always
 RestartSec=5
 Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 Environment=XDG_RUNTIME_DIR=/run/user/{{UID}}
+Environment=TRANSLATOR_PRELOAD_LANGUAGES=zh,en
+Environment=TRANSLATOR_SPEECH_MODEL_CACHE_SIZE=2
+Environment=LITERT_MODEL=gemma4-e2b
+Environment=LITERT_MAX_NUM_TOKENS=4096
+Environment=LITERT_RESET_AT_TOKENS=3200
 EnvironmentFile=-/etc/default/whisplay-plus-gpio
 
 [Install]
