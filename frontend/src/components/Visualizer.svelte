@@ -26,13 +26,13 @@ let canvas1 = $state(null);
 let canvas2 = $state(null);
 let animationId = null;
 
-function drawStaticWaveform(ctx, canvas) {
+function drawStaticWaveform(ctx, canvas, isActive = false) {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.lineWidth = 1;
-  ctx.strokeStyle = "#000000";
+  ctx.strokeStyle = isActive ? "#000000" : "rgba(0,0,0,0.3)";
   ctx.beginPath();
-  ctx.moveTo(0, canvas.height);
-  ctx.lineTo(canvas.width, canvas.height);
+  ctx.moveTo(0, canvas.height - 1);
+  ctx.lineTo(canvas.width, canvas.height - 1);
   ctx.stroke();
 
   const numBars = barsCount || 32;
@@ -40,8 +40,9 @@ function drawStaticWaveform(ctx, canvas) {
   let x = 0;
 
   for (let i = 0; i < numBars; i++) {
-    const barHeight = 1;
-    ctx.fillStyle = "#000000";
+    // Active lane displays elevated VU ticks so the user sees microphone readiness
+    const barHeight = isActive ? ((i % 4 === 0) ? 5 : 2) : 1;
+    ctx.fillStyle = isActive ? "#000000" : "rgba(0,0,0,0.25)";
     ctx.fillRect(x, canvas.height - barHeight, barWidth, barHeight);
     x += barWidth + 1;
   }
@@ -57,8 +58,8 @@ $effect(() => {
       cancelAnimationFrame(animationId);
       animationId = null;
     }
-    drawStaticWaveform(ctx1, canvas1);
-    drawStaticWaveform(ctx2, canvas2);
+    drawStaticWaveform(ctx1, canvas1, activePerson === 1);
+    drawStaticWaveform(ctx2, canvas2, activePerson === 2);
     return;
   }
 

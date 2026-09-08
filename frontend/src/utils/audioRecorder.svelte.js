@@ -16,6 +16,21 @@
 
 import { getMergedSamples, resample, blobToBase64 } from "./audioHelpers"
 
+// Inline audio worklet for real-time, low-latency audio capture off the main thread.
+const WORKLET_CODE = `
+class WhisperAudioProcessor extends AudioWorkletProcessor {
+  process(inputs, outputs, parameters) {
+    const input = inputs[0];
+    if (input && input.length > 0 && input[0].length > 0) {
+      // Must clone channel data since Web Audio reuses the Float32Array buffer each quantum
+      this.port.postMessage(new Float32Array(input[0]));
+    }
+    return true;
+  }
+}
+registerProcessor('whisper-audio-processor', WhisperAudioProcessor);
+`;
+
 // Mic capture controller for Svelte 5: records raw Float32 PCM via Web Audio,
 // resamples to 16 kHz mono, and returns it base64-encoded — the exact payload
 // format expected by POST /api/stt (backend/server.py).
@@ -26,6 +41,7 @@ export class AudioRecorder {
 
   #audioContext = null
   #source = null
+  #workletNode = null
   #scriptProcessor = null
   #stream = null
   #recordedSamples = []
@@ -54,17 +70,45 @@ export class AudioRecorder {
       source.connect(analyser)
       this.analyser = analyser
 
-      const scriptProcessor = this.#audioContext.createScriptProcessor(4096, 1, 1)
-      this.#scriptProcessor = scriptProcessor
       this.#recordedSamples = []
 
-      scriptProcessor.onaudioprocess = (e) => {
-        const inputData = e.inputBuffer.getChannelData(0)
-        this.#recordedSamples.push(new Float32Array(inputData))
+      // Prefer AudioWorkletNode (dedicated real-time audio thread);
+      // fallback to ScriptProcessorNode on legacy runtimes.
+      let useWorklet = false
+      if (this.#audioContext.audioWorklet && typeof AudioWorkletNode !== "undefined") {
+        try {
+          const blob = new Blob([WORKLET_CODE], { type: "application/javascript" })
+          const workletUrl = URL.createObjectURL(blob)
+          await this.#audioContext.audioWorklet.addModule(workletUrl)
+          URL.revokeObjectURL(workletUrl)
+
+          const workletNode = new AudioWorkletNode(
+            this.#audioContext,
+            "whisper-audio-processor",
+          )
+          workletNode.port.onmessage = (e) => {
+            this.#recordedSamples.push(e.data)
+          }
+
+          source.connect(workletNode)
+          workletNode.connect(this.#audioContext.destination)
+          this.#workletNode = workletNode
+          useWorklet = true
+        } catch (workletErr) {
+          console.warn("AudioWorklet init failed; using ScriptProcessor fallback:", workletErr)
+        }
       }
 
-      source.connect(scriptProcessor)
-      scriptProcessor.connect(this.#audioContext.destination)
+      if (!useWorklet) {
+        const scriptProcessor = this.#audioContext.createScriptProcessor(4096, 1, 1)
+        this.#scriptProcessor = scriptProcessor
+        scriptProcessor.onaudioprocess = (e) => {
+          const inputData = e.inputBuffer.getChannelData(0)
+          this.#recordedSamples.push(new Float32Array(inputData))
+        }
+        source.connect(scriptProcessor)
+        scriptProcessor.connect(this.#audioContext.destination)
+      }
 
       this.isRecording = true
       return true
@@ -83,6 +127,12 @@ export class AudioRecorder {
     if (this.#stream) {
       this.#stream.getTracks().forEach((track) => track.stop())
       this.#stream = null
+    }
+
+    if (this.#workletNode) {
+      this.#workletNode.disconnect()
+      this.#workletNode.port.onmessage = null
+      this.#workletNode = null
     }
 
     if (this.#scriptProcessor) {
