@@ -88,13 +88,15 @@ function formatTimingValue(value) {
             </span>
           </div>
 
-          <div class="timing-item {timing.translate === 'loading' ? 'loading' : ''}">
-            <span class="timing-label">LLM 1st</span>
+          <div class="timing-item {timing.translate === 'loading' ? 'loading' : ''} {typeof timing.translate === 'number' && timing.translate < 0.02 ? 'neu-fast' : ''}">
+            <span class="timing-label">{typeof timing.translate === 'number' && timing.translate < 0.02 ? 'Neu Fast' : 'LLM 1st'}</span>
             <span class="timing-value">
               {#if timing.translate === 'loading'}
                 <span class="timing-dots" aria-label="loading">
                   <span></span><span></span><span></span>
                 </span>
+              {:else if typeof timing.translate === 'number' && timing.translate < 0.02}
+                &lt; 1ms
               {:else}
                 {formatTimingValue(timing.translate)}
               {/if}

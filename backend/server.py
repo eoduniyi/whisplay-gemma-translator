@@ -30,9 +30,34 @@ import time
 import subprocess
 
 import threading
+import re
 from contextlib import contextmanager
 from pathlib import Path
 from collections import OrderedDict
+from neu_bridge import neu_bridge
+
+LANG_NAME_TO_CODE = {
+    "english": "en",
+    "chinese": "zh",
+    "mandarin": "zh",
+    "spanish": "es",
+    "japanese": "ja",
+    "korean": "ko",
+    "arabic": "ar",
+    "yoruba": "yo",
+    "french": "fr",
+    "german": "de",
+}
+
+def normalize_lang_code(val: str) -> str:
+    v = (val or "").strip().lower()
+    return LANG_NAME_TO_CODE.get(v, v[:2] if len(v) >= 2 else v)
+
+def extract_translation_query(content: str):
+    match = re.search(r"Source language:\s*([^\n]+)\s*\nTarget language:\s*([^\n]+)\s*\nText:\s*(.*)", content, re.DOTALL | re.IGNORECASE)
+    if match:
+        return match.group(1).strip(), match.group(2).strip(), match.group(3).strip()
+    return None, None, None
 
 # Multilingual STT via Moonshine.
 # Language is fixed at recognizer construction, so we lazily build (and cache) one
@@ -346,6 +371,60 @@ class ProxyHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
         if self.command in ['POST', 'PUT', 'PATCH']:
             content_length = int(self.headers.get('Content-Length', 0))
             body = self.rfile.read(content_length)
+
+        # Neu Topological Fast-Path Cascade
+        if target_url.endswith('/chat/completions') and body:
+            try:
+                payload = json.loads(body.decode('utf-8'))
+                messages = payload.get('messages', [])
+                stream_mode = bool(payload.get('stream', False))
+                user_msg = next((m.get('content', '') for m in reversed(messages) if m.get('role') == 'user'), '')
+                src_str, dst_str, text_to_trans = extract_translation_query(user_msg)
+                if src_str and dst_str and text_to_trans:
+                    src_code = normalize_lang_code(src_str)
+                    dst_code = normalize_lang_code(dst_str)
+                    neu_res = neu_bridge.translate(text_to_trans, src_code, dst_code)
+                    if neu_res:
+                        print(f"[Neu Fast-Path] Latency: {neu_res.latency_us:.2f}us | Route: {neu_res.route} | Translation: {neu_res.translation}")
+                        if stream_mode:
+                            self.send_response(200)
+                            self.send_header('Content-Type', 'text/event-stream')
+                            self.send_header('Cache-Control', 'no-cache')
+                            self.send_header('X-Accelerated-By', 'Neu-Topological-Engine')
+                            self.end_headers()
+                            chunk = {
+                                "id": "chatcmpl-neu-fastpath",
+                                "object": "chat.completion.chunk",
+                                "choices": [{"delta": {"content": neu_res.translation}, "index": 0}],
+                            }
+                            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode('utf-8'))
+                            self.wfile.write(b"data: [DONE]\n\n")
+                            self.wfile.flush()
+                            return
+                        else:
+                            self.send_response(200)
+                            self.send_header('Content-Type', 'application/json')
+                            self.send_header('X-Accelerated-By', 'Neu-Topological-Engine')
+                            self.end_headers()
+                            res_json = {
+                                "id": "chatcmpl-neu-fastpath",
+                                "object": "chat.completion",
+                                "choices": [{
+                                    "message": {"role": "assistant", "content": json.dumps({"translation": neu_res.translation})},
+                                    "index": 0
+                                }],
+                                "usage": {"total_tokens": len(neu_res.translation.split())},
+                                "neu": {
+                                    "latency_us": neu_res.latency_us,
+                                    "route": neu_res.route,
+                                    "memory_bytes": neu_res.memory_bytes,
+                                    "landauer_pj": neu_res.landauer_pj
+                                }
+                            }
+                            self.wfile.write(json.dumps(res_json).encode('utf-8'))
+                            return
+            except Exception as e:
+                print(f"[Neu Fast-Path] Passthrough due to: {e}")
 
         # Build request to target url
         req = urllib.request.Request(
@@ -674,6 +753,85 @@ class ProxyHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(str(e).encode('utf-8'))
 
+    def handle_translate(self):
+        try:
+            content_length = int(self.headers.get('Content-Length', 0))
+            body = self.rfile.read(content_length)
+            payload = json.loads(body.decode('utf-8'))
+            text = payload.get('text', '').strip()
+            source_lang = normalize_lang_code(payload.get('source_lang', 'en'))
+            target_lang = normalize_lang_code(payload.get('target_lang', 'es'))
+
+            if not text:
+                self.send_response(400)
+                self.end_headers()
+                self.wfile.write(b'Error: Missing text')
+                return
+
+            # Check Neu fast-path
+            neu_res = neu_bridge.translate(text, source_lang, target_lang)
+            if neu_res:
+                print(f"[Neu Fast-Path Direct] {text} -> {neu_res.translation} ({neu_res.latency_us:.2f}us)")
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('X-Accelerated-By', 'Neu-Topological-Engine')
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "translation": neu_res.translation,
+                    "engine": "neu",
+                    "latency_us": neu_res.latency_us,
+                    "route": neu_res.route,
+                    "memory_bytes": neu_res.memory_bytes,
+                    "landauer_pj": neu_res.landauer_pj
+                }).encode('utf-8'))
+                return
+
+            # If not in Neu, fallback to LiteRT-LM session server
+            target_url = "http://localhost:9379/v1/chat/completions"
+            llm_payload = {
+                "model": "gemma4-e2b",
+                "messages": [{
+                    "role": "user",
+                    "content": f"Source language: {source_lang}\nTarget language: {target_lang}\nText:\n{text}"
+                }],
+                "stream": False,
+                "temperature": 0
+            }
+            req = urllib.request.Request(
+                target_url,
+                data=json.dumps(llm_payload).encode('utf-8'),
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            t0 = time.perf_counter()
+            with urllib.request.urlopen(req, timeout=30) as response:
+                t1 = time.perf_counter()
+                res_data = json.loads(response.read().decode('utf-8'))
+                msg = res_data.get('choices', [{}])[0].get('message', {}).get('content', '')
+                try:
+                    clean = msg.strip()
+                    if clean.startswith("```json"): clean = clean[7:]
+                    if clean.startswith("```"): clean = clean[3:]
+                    if clean.endswith("```"): clean = clean[:-3]
+                    parsed = json.loads(clean.strip())
+                    translation_val = parsed.get('translation', msg)
+                except Exception:
+                    translation_val = msg
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('X-Accelerated-By', 'Gemma-4-LiteRT')
+                self.end_headers()
+                self.wfile.write(json.dumps({
+                    "translation": translation_val,
+                    "engine": "gemma4",
+                    "latency_ms": (t1 - t0) * 1000
+                }).encode('utf-8'))
+        except Exception as e:
+            traceback.print_exc()
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(json.dumps({"error": str(e)}).encode('utf-8'))
+
     def handle_kiosk_exit(self):
         if not is_local_client(self.client_address):
             self.send_response(403)
@@ -697,6 +855,9 @@ class ProxyHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(str(e).encode('utf-8'))
 
     def do_POST(self):
+        if self.path.startswith('/api/translate'):
+            self.handle_translate()
+            return
         if self.path.startswith('/proxy'):
             self.handle_proxy()
             return
