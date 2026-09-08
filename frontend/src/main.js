@@ -14,16 +14,15 @@
  * limitations under the License.
  */
 
-import React from "react"
-import ReactDOM from "react-dom/client"
-import App from "./App.jsx"
+import { mount } from "svelte"
+import App from "./App.svelte"
 import "@fontsource/roboto-mono/400.css"
 import "@fontsource/roboto-mono/500.css"
 import "@fontsource/roboto-mono/700.css"
-import "../style.css" // Preserve the original styling
+import "../style.css" // Preserve exact retro-terminal styling
 
-ReactDOM.createRoot(document.getElementById("root")).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
-)
+const app = mount(App, {
+  target: document.getElementById("root"),
+})
+
+export default app

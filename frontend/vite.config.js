@@ -15,13 +15,13 @@
  */
 
 import { defineConfig } from "vite"
-import react from "@vitejs/plugin-react"
+import { svelte } from "@sveltejs/vite-plugin-svelte"
 
 // Dev-only config: Vite serves the UI on :5173 and proxies API routes to the
 // Python backend on :3000. In production (start.sh --prod) the backend serves
 // the built frontend/dist itself, so this proxy is never involved.
 export default defineConfig({
-  plugins: [react()],
+  plugins: [svelte()],
   server: {
     host: "0.0.0.0",
     port: 5173,
