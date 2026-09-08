@@ -2,7 +2,11 @@
 """
 benchmark/bench_whisplay_pipeline.py
 Comparative Systems Benchmark: Neu Topological Fast-Path + Svelte 5 vs. Gemma 4 (LiteRT) + React 18
-Mathematical Linguistics Group (mlG) & Whisplay Edge Audio Project
+Mathematical Linguistics Group (mlG)
+
+Methodology Note:
+- Neu translation kernel latency and Svelte 5 static asset sizes are measured directly on the host development environment.
+- Gemma 4 (LiteRT-LM) latency/memory floors and Moonshine STT/TTS timings represent calibrated target-platform baselines for the Raspberry Pi 5 Model B (Cortex-A76 @ 2.4 GHz).
 
 Benchmarks:
 1. Speech-to-Speech End-to-End Latency: STT (Moonshine) + Translation (Neu vs Gemma 4) + TTS (Moonshine-Voice)
