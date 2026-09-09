@@ -23,8 +23,8 @@
   --border-color: #000000;
   --border-glow: #000000;
   --font-mono:
-    "Roboto Mono", "Courier New", "Noto Sans CJK KR", "Noto Sans CJK JP",
-    "Noto Sans CJK SC", "Noto Sans CJK TC", monospace;
+    "Roboto Mono", "Courier New", "Noto Sans CJK KR", "Noto Sans CJK JP", "Noto Sans CJK SC",
+    "Noto Sans CJK TC", monospace;
 }
 
 * {

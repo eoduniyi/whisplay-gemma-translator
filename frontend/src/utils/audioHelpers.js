@@ -18,45 +18,44 @@
 
 // Concatenate the per-callback Float32Array chunks into one buffer.
 export function getMergedSamples(recordedSamples) {
-  let totalLength = 0
+  let totalLength = 0;
   for (let i = 0; i < recordedSamples.length; i++) {
-    totalLength += recordedSamples[i].length
+    totalLength += recordedSamples[i].length;
   }
-  const merged = new Float32Array(totalLength)
-  let offset = 0
+  const merged = new Float32Array(totalLength);
+  let offset = 0;
   for (let i = 0; i < recordedSamples.length; i++) {
-    merged.set(recordedSamples[i], offset)
-    offset += recordedSamples[i].length
+    merged.set(recordedSamples[i], offset);
+    offset += recordedSamples[i].length;
   }
-  return merged
+  return merged;
 }
 
 // Naive linear-interpolation resampler — quality is fine for speech STT.
 export function resample(audioBuffer, originalSampleRate, targetSampleRate) {
   if (originalSampleRate === targetSampleRate) {
-    return audioBuffer
+    return audioBuffer;
   }
-  const ratio = originalSampleRate / targetSampleRate
-  const newLength = Math.round(audioBuffer.length / ratio)
-  const result = new Float32Array(newLength)
+  const ratio = originalSampleRate / targetSampleRate;
+  const newLength = Math.round(audioBuffer.length / ratio);
+  const result = new Float32Array(newLength);
   for (let i = 0; i < newLength; i++) {
-    const position = i * ratio
-    const index = Math.floor(position)
-    const fraction = position - index
-    const sampleCurrent = audioBuffer[index]
-    const sampleNext =
-      index + 1 < audioBuffer.length ? audioBuffer[index + 1] : sampleCurrent
-    result[i] = sampleCurrent + fraction * (sampleNext - sampleCurrent)
+    const position = i * ratio;
+    const index = Math.floor(position);
+    const fraction = position - index;
+    const sampleCurrent = audioBuffer[index];
+    const sampleNext = index + 1 < audioBuffer.length ? audioBuffer[index + 1] : sampleCurrent;
+    result[i] = sampleCurrent + fraction * (sampleNext - sampleCurrent);
   }
-  return result
+  return result;
 }
 
 // Base64-encode a Blob, stripping the "data:...;base64," data-URL prefix.
 export function blobToBase64(blob) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onloadend = () => resolve(reader.result.split(",")[1])
-    reader.onerror = reject
-    reader.readAsDataURL(blob)
-  })
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result.split(",")[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
 }

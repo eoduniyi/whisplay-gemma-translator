@@ -14,15 +14,15 @@
  * limitations under the License.
  */
 
-import { mount } from "svelte"
-import App from "./App.svelte"
-import "@fontsource/roboto-mono/400.css"
-import "@fontsource/roboto-mono/500.css"
-import "@fontsource/roboto-mono/700.css"
-import "../style.css" // Preserve exact retro-terminal styling
+import { mount } from "svelte";
+import App from "./App.svelte";
+import "@fontsource/roboto-mono/400.css";
+import "@fontsource/roboto-mono/500.css";
+import "@fontsource/roboto-mono/700.css";
+import "../style.css"; // Preserve exact retro-terminal styling
 
 const app = mount(App, {
   target: document.getElementById("root"),
-})
+});
 
-export default app
+export default app;
