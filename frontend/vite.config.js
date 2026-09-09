@@ -73,10 +73,26 @@ export default defineConfig(async () => {
         "/api": {
           target: `http://localhost:${backendPort}`,
           changeOrigin: true,
+          configure: (proxy) => {
+            proxy.on("error", (err, req, res) => {
+              if (res && !res.headersSent) {
+                res.writeHead(503, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: `Backend offline on port ${backendPort}` }));
+              }
+            });
+          },
         },
         "/proxy": {
           target: `http://localhost:${backendPort}`,
           changeOrigin: true,
+          configure: (proxy) => {
+            proxy.on("error", (err, req, res) => {
+              if (res && !res.headersSent) {
+                res.writeHead(503, { "Content-Type": "application/json" });
+                res.end(JSON.stringify({ error: `Backend offline on port ${backendPort}` }));
+              }
+            });
+          },
         },
       },
     },
