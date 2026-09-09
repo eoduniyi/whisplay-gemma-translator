@@ -20,7 +20,7 @@ litert-lm-builder==0.13.0
 markdown-it-py==4.2.0
 mdurl==0.1.2
 moonshine-voice==0.0.65
-numpy==2.5.1
+numpy>=2.0.0,<2.6.0
 packaging==26.2
 platformdirs==4.10.0
 prompt_toolkit==3.0.52
