@@ -30,7 +30,7 @@ let config = $state({
   useProxy: true,
   enableTts: true,
   visualizerBars: 16,
-  systemPrompt: "Translator mode",
+  systemPrompt: "You are a fast speech translator. Output ONLY the natural translation into the requested target language without notes, pinyin, or commentary.",
   themeColor: localStorage.getItem("themeColor") || "#ffa500",
   lane1Language: localStorage.getItem("lane1Language") || "zh",
   lane2Language: localStorage.getItem("lane2Language") || "en",

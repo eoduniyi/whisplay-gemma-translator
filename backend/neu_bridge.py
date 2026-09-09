@@ -114,6 +114,18 @@ class NeuTopologicalEngine:
             ("water please", "请给我水", "cast(zh)"),
             ("the child drinks water", "孩子喝水", "cast(zh)"),
             ("the elder eats yam", "长者吃山药", "cast(zh)"),
+            ("train", "火车", "cast(zh)"),
+            ("train station", "火车站", "cast(zh)"),
+            ("where is the train", "火车在哪里？", "shift(arg) -> cast(zh)"),
+            ("where is the next train", "下一趟火车在哪里？", "shift(arg) -> cast(zh)"),
+            ("where is the next", "下一个在哪里？", "shift(arg) -> cast(zh)"),
+            ("speedrun", "竞速", "cast(zh)"),
+            ("stop", "停", "cast(zh)"),
+            ("wait", "等等", "cast(zh)"),
+            ("okay", "好的", "cast(zh)"),
+            ("ok", "好的", "cast(zh)"),
+            ("lets go", "我们走吧", "cast(zh)"),
+            ("let's go", "我们走吧", "cast(zh)"),
         ]
         for en, zh, r in en_zh_pairs:
             reg("en", "zh", en, zh, r)

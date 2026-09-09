@@ -491,15 +491,18 @@ class ProxyHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
                     ollama_url = "http://localhost:11434/v1/chat/completions"
                     payload = json.loads(body.decode('utf-8'))
                     messages = payload.get("messages", [])
-                    has_system = any(m.get("role") == "system" for m in messages)
-                    if not has_system:
-                        messages.insert(0, {
-                            "role": "system",
-                            "content": "You are a fast, accurate speech translator. Output ONLY the natural translation into the requested target language. Never add notes, pinyin, pronunciation, explanations, or quotes."
-                        })
-                    payload["messages"] = messages
+                    strict_instruction = (
+                        "You are a fast speech translator. Output ONLY the raw natural translation "
+                        "into the requested target language. Never add notes, pinyin, pronunciation, "
+                        "explanations, Markdown, or quotes."
+                    )
+                    # Replace or insert strict translation instruction
+                    filtered_messages = [m for m in messages if m.get("role") != "system"]
+                    filtered_messages.insert(0, {"role": "system", "content": strict_instruction})
+                    payload["messages"] = filtered_messages
                     payload["model"] = "gemma3:12b"
                     payload["temperature"] = 0.0
+                    payload["max_tokens"] = 36
                     payload.pop("top_k", None)
                     ollama_body = json.dumps(payload).encode('utf-8')
                     ollama_req = urllib.request.Request(
