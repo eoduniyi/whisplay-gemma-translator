@@ -439,8 +439,9 @@ class ProxyHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
                 req.add_header(key, val)
 
         response_started = False
+        conn_timeout = 3 if (":9379" in target_url) else 30
         try:
-            with urllib.request.urlopen(req, timeout=300) as response:
+            with urllib.request.urlopen(req, timeout=conn_timeout) as response:
                 self.send_response(response.status)
                 # Forward response headers
                 for key, val in response.headers.items():
@@ -473,16 +474,62 @@ class ProxyHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
             if response_started:
                 self.close_connection = True
             elif target_url.endswith('/v1/models'):
-                # Local dev fallback: return active local Neu model descriptor
+                # Local dev fallback: return active local Neu / Gemma model descriptor
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
                 self.wfile.write(json.dumps({
                     "object": "list",
                     "data": [
-                        {"id": "gemma-4-2b-it (Neu Fast-Path Active)", "object": "model", "owned_by": "neu"}
+                        {"id": "gemma-4-2b-it (Neu Fast-Path + Local Gemma)", "object": "model", "owned_by": "neu"}
                     ]
                 }).encode('utf-8'))
+            elif target_url.endswith('/chat/completions') and body:
+                # Local dev fallback: try local Ollama Gemma instance on port 11434
+                ollama_fallback_success = False
+                try:
+                    ollama_url = "http://localhost:11434/v1/chat/completions"
+                    payload = json.loads(body.decode('utf-8'))
+                    messages = payload.get("messages", [])
+                    has_system = any(m.get("role") == "system" for m in messages)
+                    if not has_system:
+                        messages.insert(0, {
+                            "role": "system",
+                            "content": "You are a fast, accurate speech translator. Output ONLY the natural translation into the requested target language. Never add notes, pinyin, pronunciation, explanations, or quotes."
+                        })
+                    payload["messages"] = messages
+                    payload["model"] = "gemma3:12b"
+                    payload["temperature"] = 0.0
+                    payload.pop("top_k", None)
+                    ollama_body = json.dumps(payload).encode('utf-8')
+                    ollama_req = urllib.request.Request(
+                        ollama_url,
+                        data=ollama_body,
+                        headers={"Content-Type": "application/json"},
+                        method="POST"
+                    )
+                    with urllib.request.urlopen(ollama_req, timeout=120) as ollama_res:
+                        self.send_response(ollama_res.status)
+                        for key, val in ollama_res.headers.items():
+                            if key.lower() not in ['content-length', 'connection', 'transfer-encoding']:
+                                self.send_header(key, val)
+                        self.end_headers()
+                        read_chunk = getattr(ollama_res, 'read1', ollama_res.read)
+                        while True:
+                            chunk = read_chunk(4096)
+                            if not chunk:
+                                break
+                            self.wfile.write(chunk)
+                            self.wfile.flush()
+                        ollama_fallback_success = True
+                        print("[Proxy Cascade] Successfully fulfilled translation via local Gemma (Ollama:11434)")
+                except Exception as ollama_err:
+                    print(f"[Proxy Cascade] Ollama fallback failed: {ollama_err}")
+
+                if not ollama_fallback_success:
+                    self.send_response(500)
+                    self.end_headers()
+                    self.wfile.write(str(e).encode('utf-8'))
             else:
                 self.send_response(500)
                 self.end_headers()
