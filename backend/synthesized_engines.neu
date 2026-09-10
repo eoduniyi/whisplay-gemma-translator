@@ -1,6 +1,6 @@
 // ============================================================================
 // Neu Dynamic Morphic Engine Registry
-// Generated & Compiled by Neu JIT Induction at 2026-09-09 20:16:11
+// Generated & Compiled by Neu JIT Induction at 2026-09-09 20:39:52
 // Mathematical Linguistics Group (mlG)
 // ============================================================================
 
@@ -57,6 +57,7 @@ let cost_LocativeInversion_ES = engine_LocativeInversion_ES -> complex;
 // Active Slot Lexicon Projections
 // ----------------------------------------------------------------------------
 let active_slot_lexicon = [
+  "a doctor", "医生",
   "agua", "water",
   "airport", "el aeropuerto",
   "airport", "空港",
@@ -208,7 +209,7 @@ let active_slot_lexicon = [
   "出租车", "taxi",
   "切符", "ticket",
   "助け", "help",
-  "医生", "doctor",
+  "医生", "a doctor",
   "医者", "doctor",
   "医院", "hospital",
   "博物館", "museum",

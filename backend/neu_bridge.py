@@ -194,8 +194,10 @@ class NeuTopologicalEngine:
             ("no", "いいえ", "cast(ja)"),
             ("please", "お願いします", "cast(ja)"),
             ("where is the station", "駅はどこですか？", "shift(SOV) -> cast(ja)"),
+            ("where is the train station", "駅はどこですか？", "shift(SOV) -> cast(ja)"),
             ("where is the bathroom", "トイレはどこですか？", "shift(SOV) -> cast(ja)"),
             ("water please", "お水をください", "shift(SOV) -> cast(ja)"),
+            ("the child drinks water", "子供は水を飲みます", "shift(SOV) -> cast(ja)"),
         ]
         for en, ja, r in en_ja_pairs:
             reg("en", "ja", en, ja, r)
@@ -228,6 +230,20 @@ class NeuTopologicalEngine:
         for en, ar, r in en_ar_pairs:
             reg("en", "ar", en, ar, r)
             reg("ar", "en", ar, en.capitalize(), f"invert({r})")
+
+        # 6. English <-> Yoruba
+        en_yo_pairs = [
+            ("hello", "Ẹ n lẹ", "cast(yo)"),
+            ("good morning", "Ẹ kú àárọ̀", "split { greeting, aspect } -> cast(yo)"),
+            ("good evening", "Ẹ kú ìrọ̀lẹ́", "split { greeting, aspect } -> cast(yo)"),
+            ("thank you", "Ẹ ṣeun", "cast(yo)"),
+            ("the elder eats yam", "Àgbàlagbà náà ń jẹ iṣu", "split { root, tone, aspect } -> cast(yo)"),
+            ("the child drinks water", "Ọmọ náà ń mu omi", "split { root, tone, aspect } -> cast(yo)"),
+            ("water", "omi", "cast(yo)"),
+        ]
+        for en, yo, r in en_yo_pairs:
+            reg("en", "yo", en, yo, r)
+            reg("yo", "en", yo, en.capitalize(), f"invert({r})")
 
     def _init_slot_lexicon(self):
         """Cross-lingual slot lexicon store for parameterized Neu engines."""

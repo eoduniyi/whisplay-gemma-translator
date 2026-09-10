@@ -1,0 +1,80 @@
+{
+  "results": [
+    {
+      "case": "Locative (Museum)",
+      "source": "Where is the museum",
+      "translation": "博物馆在哪里？",
+      "route": "induced_morphism -> cast",
+      "cold_llm_ms": 3200.0,
+      "induction_time_us": 11.000019876519218,
+      "warm_neu_us": 2.6364199438830838,
+      "variant_neu_us": 2.684156090253964,
+      "speedup_exact": 1213767.1797789696,
+      "speedup_variant": 1192181.0402975592,
+      "landauer_pj": 0.009000000000000001,
+      "memory_bytes": 112
+    },
+    {
+      "case": "Locative (Airport)",
+      "source": "Where is the airport",
+      "translation": "机场在哪里？",
+      "route": "induced_morphism -> cast",
+      "cold_llm_ms": 2950.0,
+      "induction_time_us": 13.009180111112073,
+      "warm_neu_us": 2.302991895703599,
+      "variant_neu_us": 2.626145869726315,
+      "speedup_exact": 1280942.4147359973,
+      "speedup_variant": 1123319.1705026787,
+      "landauer_pj": 0.009000000000000001,
+      "memory_bytes": 112
+    },
+    {
+      "case": "Desire (Noodles)",
+      "source": "I want to eat noodles",
+      "translation": "我想吃面条",
+      "route": "induced_morphism -> cast",
+      "cold_llm_ms": 3100.0,
+      "induction_time_us": 12.3583001550287,
+      "warm_neu_us": 2.4445441376883537,
+      "variant_neu_us": 2.707600040594116,
+      "speedup_exact": 1268130.0992713792,
+      "speedup_variant": 1144925.3780184542,
+      "landauer_pj": 0.009000000000000001,
+      "memory_bytes": 112
+    },
+    {
+      "case": "Valuation (Ticket)",
+      "source": "How much is this ticket",
+      "translation": "票多少钱？",
+      "route": "induced_morphism -> cast",
+      "cold_llm_ms": 2800.0,
+      "induction_time_us": 12.264919641893357,
+      "warm_neu_us": 2.451942054904066,
+      "variant_neu_us": 3.2919178920565173,
+      "speedup_exact": 1141951.945560782,
+      "speedup_variant": 850567.9946503137,
+      "landauer_pj": 0.009000000000000001,
+      "memory_bytes": 112
+    },
+    {
+      "case": "Need (Doctor)",
+      "source": "I need a doctor",
+      "translation": "我需要医生",
+      "route": "induced_morphism -> cast",
+      "cold_llm_ms": 3050.0,
+      "induction_time_us": 11.648379149846733,
+      "warm_neu_us": 2.1127121144672856,
+      "variant_neu_us": 2.411655950709246,
+      "speedup_exact": 1443642.0272854113,
+      "speedup_variant": 1264691.1758300443,
+      "landauer_pj": 0.009000000000000001,
+      "memory_bytes": 112
+    }
+  ],
+  "summary": {
+    "avg_cold_ms": 3020.0,
+    "avg_warm_us": 2.3897220293292776,
+    "avg_variant_us": 2.7442951686680317,
+    "avg_speedup": 1269686.733326508
+  }
+}

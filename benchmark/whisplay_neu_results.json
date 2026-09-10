@@ -1,19 +1,19 @@
 {
   "translation": {
-    "neu_mean_us": 2.162644639611244,
-    "neu_std_us": 0.3023179703488703,
+    "neu_mean_us": 2.094878433406568,
+    "neu_std_us": 0.2764413937448536,
     "gemma_ms": 1180.0,
     "gemma_us": 1180000.0,
     "pytorch_us": 441.7,
-    "speedup_vs_gemma": 545628.2453376696,
-    "speedup_vs_pytorch": 204.24067454715987
+    "speedup_vs_gemma": 563278.5087586937,
+    "speedup_vs_pytorch": 210.84755704975848
   },
   "end_to_end": {
     "stt_ms": 245.0,
     "tts_ms": 160.0,
     "e2e_gemma_wait_ms": 1585.0,
-    "e2e_neu_wait_ms": 405.0021626446396,
-    "e2e_speedup": 3.91355934904161
+    "e2e_neu_wait_ms": 405.0020948784334,
+    "e2e_speedup": 3.913560003870494
   },
   "kiosk": {
     "react": {
@@ -31,5 +31,5 @@
       "vdom_nodes_diffed_per_sec": 0
     }
   },
-  "timestamp": "2026-09-08T18:54:03Z"
+  "timestamp": "2026-09-10T00:39:28Z"
 }
