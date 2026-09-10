@@ -59,6 +59,54 @@ def extract_translation_query(content: str):
         return match.group(1).strip(), match.group(2).strip(), match.group(3).strip()
     return None, None, None
 
+def extract_completion_text(raw_bytes: bytes, is_stream: bool) -> str:
+    if not raw_bytes:
+        return ""
+    raw_str = raw_bytes.decode('utf-8', errors='ignore')
+    if not is_stream:
+        try:
+            d = json.loads(raw_str)
+            msg = d.get('choices', [{}])[0].get('message', {}).get('content', '')
+            clean = msg.strip()
+            if clean.startswith("```json"): clean = clean[7:]
+            if clean.startswith("```"): clean = clean[3:]
+            if clean.endswith("```"): clean = clean[:-3]
+            try:
+                parsed = json.loads(clean.strip())
+                if isinstance(parsed, dict) and "translation" in parsed:
+                    return str(parsed["translation"]).strip()
+            except Exception:
+                pass
+            return msg.strip()
+        except Exception:
+            return ""
+
+    tokens = []
+    for line in raw_str.splitlines():
+        line = line.strip()
+        if line.startswith("data: ") and not line.endswith("[DONE]"):
+            try:
+                data = json.loads(line[6:])
+                delta = data.get("choices", [{}])[0].get("delta", {})
+                content = delta.get("content")
+                if content:
+                    tokens.append(content)
+            except Exception:
+                continue
+    full_text = "".join(tokens).strip()
+    clean = full_text.strip()
+    if clean.startswith("```json"): clean = clean[7:]
+    if clean.startswith("```"): clean = clean[3:]
+    if clean.endswith("```"): clean = clean[:-3]
+    try:
+        parsed = json.loads(clean.strip())
+        if isinstance(parsed, dict) and "translation" in parsed:
+            return str(parsed["translation"]).strip()
+    except Exception:
+        pass
+    return full_text
+
+
 # Multilingual STT via Moonshine.
 # Language is fixed at recognizer construction, so we lazily build (and cache) one
 # recognizer per language actually used.
@@ -373,6 +421,10 @@ class ProxyHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
             body = self.rfile.read(content_length)
 
         # Neu Topological Fast-Path Cascade
+        text_to_trans = None
+        src_code = None
+        dst_code = None
+        stream_mode = False
         if target_url.endswith('/chat/completions') and body:
             try:
                 payload = json.loads(body.decode('utf-8'))
@@ -452,12 +504,18 @@ class ProxyHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
                 # read1 returns currently available bytes instead of waiting for
                 # the full response. This preserves LiteRT-LM SSE token timing.
                 read_chunk = getattr(response, 'read1', response.read)
+                accumulated_chunks = []
                 while True:
                     res_body = read_chunk(4096)
                     if not res_body:
                         break
                     self.wfile.write(res_body)
                     self.wfile.flush()
+                    accumulated_chunks.append(res_body)
+                if text_to_trans and src_code and dst_code:
+                    trans_text = extract_completion_text(b"".join(accumulated_chunks), stream_mode)
+                    if trans_text:
+                        neu_bridge.induce_from_trace(text_to_trans, trans_text, src_code, dst_code)
         except (BrokenPipeError, ConnectionResetError):
             print("[Proxy] Streaming client disconnected")
         except urllib.error.HTTPError as e:
@@ -518,14 +576,20 @@ class ProxyHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
                                 self.send_header(key, val)
                         self.end_headers()
                         read_chunk = getattr(ollama_res, 'read1', ollama_res.read)
+                        accumulated_chunks = []
                         while True:
                             chunk = read_chunk(4096)
                             if not chunk:
                                 break
                             self.wfile.write(chunk)
                             self.wfile.flush()
+                            accumulated_chunks.append(chunk)
                         ollama_fallback_success = True
                         print("[Proxy Cascade] Successfully fulfilled translation via local Gemma (Ollama:11434)")
+                        if text_to_trans and src_code and dst_code:
+                            trans_text = extract_completion_text(b"".join(accumulated_chunks), stream_mode)
+                            if trans_text:
+                                neu_bridge.induce_from_trace(text_to_trans, trans_text, src_code, dst_code)
                 except Exception as ollama_err:
                     print(f"[Proxy Cascade] Ollama fallback failed: {ollama_err}")
 
@@ -903,6 +967,7 @@ class ProxyHTTPRequestHandler(http.server.BaseHTTPRequestHandler):
                     translation_val = parsed.get('translation', msg)
                 except Exception:
                     translation_val = msg
+                neu_bridge.induce_from_trace(text, translation_val, source_lang, target_lang)
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.send_header('X-Accelerated-By', 'Gemma-4-LiteRT')

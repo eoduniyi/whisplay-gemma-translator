@@ -1,0 +1,271 @@
+// ============================================================================
+// Neu Dynamic Morphic Engine Registry
+// Generated & Compiled by Neu JIT Induction at 2026-09-09 20:16:11
+// Mathematical Linguistics Group (mlG)
+// ============================================================================
+
+// Morphism: LocativeInversion (en -> zh)
+// Functor Route: decompose(slots: [#interrogative, #entity]) -> shift(#entity, before: #interrogative) -> cast(#zh)
+let train_LocativeInversion = ["Where", "is", "the", "train"];
+let target_LocativeInversion = ["火车", "在", "哪里"];
+let engine_LocativeInversion = train_LocativeInversion -> learn(target: target_LocativeInversion, target_lang: "Chinese");
+let cost_LocativeInversion = engine_LocativeInversion -> complex;
+
+// Morphism: DesireAction (en -> zh)
+// Functor Route: decompose(slots: [#subject, #modal, #item]) -> cast(#zh)
+let train_DesireAction = ["I", "want", "coffee"];
+let target_DesireAction = ["我想点", "咖啡"];
+let engine_DesireAction = train_DesireAction -> learn(target: target_DesireAction, target_lang: "Chinese");
+let cost_DesireAction = engine_DesireAction -> complex;
+
+// Morphism: PolitenessRequest (en -> zh)
+// Functor Route: decompose(slots: [#courtesy_marker, #object]) -> shift(#courtesy_marker, tier: #honorific) -> cast(#zh)
+let train_PolitenessRequest = ["Please", "give", "me", "water"];
+let target_PolitenessRequest = ["请给我", "水"];
+let engine_PolitenessRequest = train_PolitenessRequest -> learn(target: target_PolitenessRequest, target_lang: "Chinese");
+let cost_PolitenessRequest = engine_PolitenessRequest -> complex;
+
+// Morphism: ValuationQuery (en -> zh)
+// Functor Route: decompose(slots: [#cost_interrogative, #item]) -> shift(#item, before: #cost_interrogative) -> cast(#zh)
+let train_ValuationQuery = ["How", "much", "is", "beer"];
+let target_ValuationQuery = ["啤酒", "多少钱"];
+let engine_ValuationQuery = train_ValuationQuery -> learn(target: target_ValuationQuery, target_lang: "Chinese");
+let cost_ValuationQuery = engine_ValuationQuery -> complex;
+
+// Morphism: NeedDeclaration (en -> zh)
+// Functor Route: decompose(slots: [#subject, #predicate, #item]) -> cast(#zh)
+let train_NeedDeclaration = ["I", "need", "help"];
+let target_NeedDeclaration = ["我需要", "帮助"];
+let engine_NeedDeclaration = train_NeedDeclaration -> learn(target: target_NeedDeclaration, target_lang: "Chinese");
+let cost_NeedDeclaration = engine_NeedDeclaration -> complex;
+
+// Morphism: PresenceQuery (en -> zh)
+// Functor Route: split { pronoun, interrogative } -> cast(#zh)
+let train_PresenceQuery = ["Do", "you", "have", "tea"];
+let target_PresenceQuery = ["你有", "茶", "吗"];
+let engine_PresenceQuery = train_PresenceQuery -> learn(target: target_PresenceQuery, target_lang: "Chinese");
+let cost_PresenceQuery = engine_PresenceQuery -> complex;
+
+// Morphism: LocativeInversion_ES (en -> es)
+// Functor Route: decompose(slots: [#interrogative, #entity]) -> cast(#es)
+let train_LocativeInversion_ES = ["Where", "is", "the", "hotel"];
+let target_LocativeInversion_ES = ["Dónde", "está", "el", "hotel"];
+let engine_LocativeInversion_ES = train_LocativeInversion_ES -> learn(target: target_LocativeInversion_ES, target_lang: "Spanish");
+let cost_LocativeInversion_ES = engine_LocativeInversion_ES -> complex;
+
+// ----------------------------------------------------------------------------
+// Active Slot Lexicon Projections
+// ----------------------------------------------------------------------------
+let active_slot_lexicon = [
+  "agua", "water",
+  "airport", "el aeropuerto",
+  "airport", "空港",
+  "airport", "공항",
+  "airport", "机场",
+  "arroz", "rice",
+  "ayuda", "help",
+  "bathroom", "el baño",
+  "bathroom", "トイレ",
+  "bathroom", "화장실",
+  "bathroom", "洗手间",
+  "beer", "cerveza",
+  "beer", "ビール",
+  "beer", "맥주",
+  "beer", "啤酒",
+  "bill", "la cuenta",
+  "bill", "お会計",
+  "bill", "계산서",
+  "bill", "账单",
+  "bus", "el autobús",
+  "bus", "バス",
+  "bus", "버스",
+  "bus", "公共汽车",
+  "café", "coffee",
+  "cerveza", "beer",
+  "coffee", "café",
+  "coffee", "コーヒー",
+  "coffee", "커피",
+  "coffee", "咖啡",
+  "comida", "food",
+  "doctor", "el médico",
+  "doctor", "医者",
+  "doctor", "의사",
+  "doctor", "医生",
+  "el aeropuerto", "airport",
+  "el autobús", "bus",
+  "el baño", "restroom",
+  "el billete", "ticket",
+  "el hospital", "hospital",
+  "el hotel", "hotel",
+  "el menú", "menu",
+  "el metro", "subway",
+  "el museo", "museum",
+  "el médico", "doctor",
+  "el taxi", "taxi",
+  "el tren", "train",
+  "el wifi", "wifi",
+  "fideos", "noodles",
+  "food", "comida",
+  "food", "食べ物",
+  "food", "음식",
+  "food", "食物",
+  "help", "ayuda",
+  "help", "助け",
+  "help", "도움",
+  "help", "帮助",
+  "hospital", "el hospital",
+  "hospital", "病院",
+  "hospital", "병원",
+  "hospital", "医院",
+  "hotel", "el hotel",
+  "hotel", "ホテル",
+  "hotel", "호텔",
+  "hotel", "酒店",
+  "la biblioteca", "library",
+  "la cuenta", "bill",
+  "la estación", "station",
+  "la estación de tren", "train station",
+  "la policía", "police",
+  "library", "la biblioteca",
+  "library", "図書館",
+  "library", "도서관",
+  "library", "图书馆",
+  "menu", "el menú",
+  "menu", "メニュー",
+  "menu", "메뉴",
+  "menu", "菜单",
+  "museum", "el museo",
+  "museum", "博物館",
+  "museum", "박물관",
+  "museum", "博物馆",
+  "noodles", "fideos",
+  "noodles", "ラーメン",
+  "noodles", "국수",
+  "noodles", "面条",
+  "police", "la policía",
+  "police", "警察",
+  "police", "경찰",
+  "police", "警察",
+  "restroom", "el baño",
+  "restroom", "トイレ",
+  "restroom", "화장실",
+  "restroom", "洗手间",
+  "rice", "arroz",
+  "rice", "ご飯",
+  "rice", "밥",
+  "rice", "米饭",
+  "station", "la estación",
+  "station", "駅",
+  "station", "역",
+  "station", "车站",
+  "subway", "el metro",
+  "subway", "地下鉄",
+  "subway", "지하철",
+  "subway", "地铁",
+  "taxi", "el taxi",
+  "taxi", "タクシー",
+  "taxi", "택시",
+  "taxi", "出租车",
+  "tea", "té",
+  "tea", "お茶",
+  "tea", "차",
+  "tea", "茶",
+  "ticket", "el billete",
+  "ticket", "切符",
+  "ticket", "표",
+  "ticket", "票",
+  "train", "el tren",
+  "train", "電車",
+  "train", "기차",
+  "train", "火车",
+  "train station", "la estación de tren",
+  "train station", "駅",
+  "train station", "기차역",
+  "train station", "火车站",
+  "té", "tea",
+  "water", "agua",
+  "water", "お水",
+  "water", "물",
+  "water", "水",
+  "wifi", "el wifi",
+  "wifi", "ワイファイ",
+  "wifi", "와이파이",
+  "wifi", "无线网络",
+  "お会計", "bill",
+  "お水", "water",
+  "お茶", "tea",
+  "ご飯", "rice",
+  "コーヒー", "coffee",
+  "タクシー", "taxi",
+  "トイレ", "restroom",
+  "バス", "bus",
+  "ビール", "beer",
+  "ホテル", "hotel",
+  "メニュー", "menu",
+  "ラーメン", "noodles",
+  "ワイファイ", "wifi",
+  "公共汽车", "bus",
+  "出租车", "taxi",
+  "切符", "ticket",
+  "助け", "help",
+  "医生", "doctor",
+  "医者", "doctor",
+  "医院", "hospital",
+  "博物館", "museum",
+  "博物馆", "museum",
+  "咖啡", "coffee",
+  "啤酒", "beer",
+  "図書館", "library",
+  "图书馆", "library",
+  "地下鉄", "subway",
+  "地铁", "subway",
+  "帮助", "help",
+  "无线网络", "wifi",
+  "机场", "airport",
+  "水", "water",
+  "洗手间", "restroom",
+  "火车", "train",
+  "火车站", "train station",
+  "病院", "hospital",
+  "票", "ticket",
+  "空港", "airport",
+  "米饭", "rice",
+  "茶", "tea",
+  "菜单", "menu",
+  "警察", "police",
+  "警察", "police",
+  "账单", "bill",
+  "车站", "station",
+  "酒店", "hotel",
+  "電車", "train",
+  "面条", "noodles",
+  "食べ物", "food",
+  "食物", "food",
+  "駅", "train station",
+  "경찰", "police",
+  "계산서", "bill",
+  "공항", "airport",
+  "국수", "noodles",
+  "기차", "train",
+  "기차역", "train station",
+  "도서관", "library",
+  "도움", "help",
+  "맥주", "beer",
+  "메뉴", "menu",
+  "물", "water",
+  "박물관", "museum",
+  "밥", "rice",
+  "버스", "bus",
+  "병원", "hospital",
+  "역", "station",
+  "와이파이", "wifi",
+  "음식", "food",
+  "의사", "doctor",
+  "지하철", "subway",
+  "차", "tea",
+  "커피", "coffee",
+  "택시", "taxi",
+  "표", "ticket",
+  "호텔", "hotel",
+  "화장실", "restroom"
+];
